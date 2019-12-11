@@ -1,3 +1,3 @@
-# RACH capacity simulate v1.0
+# RACH capacity simulate v2.0
 
-* For paper "**A Dynamic Backoff Window Scheme for Machine-type Communications in Cyber-physical Systems**"
+* For paper "**Estimation and Adaptation for Bursty LTE Random Access**"

@@ -1,3 +1,3 @@
-# RACH capacity simulate v1.0
+# RACH capacity simulate
 
 * Standard code

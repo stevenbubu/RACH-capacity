@@ -8,9 +8,10 @@
 #include <fstream>
 #include "lcgrand.c"
 #include <assert.h>
+#include "BackoffWin.c" 
 using namespace std;
 
-int sim_time=800;				//系統模擬時間
+int sim_time=100;				//系統模擬時間
 
 int sim_device_random_round=1;	//每個cell內的devices數目要random幾次
 int	sim_round=1;				//CELL內devices數目的每種組合 要各模擬幾回合
@@ -20,17 +21,16 @@ const int list=1001;				//Devices Number+1=M+1
 const int parameter=16;
 
 int RACH[cell][list][parameter]={0};	//儲存模擬資料 RACH[x][y][z]
-//int HT_success[10000000]={0};	//儲存RA成功device的成功時間
 
-const int MM=1000;				//the amount of MTC devices (Device number)
+const int MM=100;				//the amount of MTC devices (Device number)
 const int PREM=54;				//preambles
 const int N=cell;				//cell number
 
 const int inter_random_access_cycle=10;	//每一次RACH機會間隔多久
-const int upbound_preamble=10;	//preamble重新傳送次數上限
+const int upbound_preamble=3;	//preamble重新傳送次數上限
 
 const int RaResponseTime=20;				//RAR listen time, 20ms
-const int RAR_amount=15; 					//一次可以回的RAR數目
+const int RAR_amount=5; 					//一次可以回的RAR數目
 
 const int Wbo=20;
 float Imaxcomponent=((Wbo+7)/inter_random_access_cycle)+1;
@@ -66,21 +66,20 @@ int main(void)
 	{
 		// All detail content
 		ofstream filePtr;
-		stringstream filePtr_name;
+		stringstream filePtr_name, filePtr_name_t;
 		filePtr_name << "Test Simulation RACH Capacity N=" << simulation_case_M[simulation_case_index_N] 
 					<< ", Prms=" << simulation_case_N[simulation_case_index_N] 
-					<< ", T=" << sim_time << ".csv";
-		string filePtr_filename = filePtr_name.str();
+					<< ", T=" << sim_time;
+		filePtr_name_t << filePtr_name.str() << ".csv";
+		string filePtr_filename = filePtr_name_t.str();
 		filePtr.open(filePtr_filename.c_str(), ios::out);
 		
 		// Time for each ms
 		ofstream timePtr;
 		stringstream timePtr_name;
-		timePtr_name << "Time.csv";
+		timePtr_name << filePtr_name.str() << " Time.csv";
 		string timePtr_filename = timePtr_name.str();
 		timePtr.open(timePtr_filename.c_str(), ios::out);
-		timePtr <<"time(ms)"<<","<<"sum_RA_success_time"<<","<<"HT_S_x"<<","<<"Average Delay(ms)"<<"," \
-				<<"Access Success"<<","<<endl;
 		
 		
 		const int preambles=simulation_case_N[simulation_case_index_N];
@@ -124,15 +123,11 @@ int main(void)
 					//Main function
 					for(int time=1; time<=sim_time; time++)	//共模擬多少時間
 					{
-						
 						for(int x=0; x<cell; x++)	//每個cell分別 run simulation
 						{
-						
 							int cell_diveces_number=0;	//抓出這個CELL devices的數目
 							cell_diveces_number=BOX[x];
-
 							RACH[x][cell_diveces_number][0]=0;//把統記(成功+失敗)的計數器歸零
-
 
 							if(time%inter_random_access_cycle==2)	// 2st subframe 有RACH機會
 							{
@@ -142,18 +137,16 @@ int main(void)
 								
 								for(int scan_2=0; scan_2<BOX[x]; scan_2++)
 								{
-									
 									if((RACH[x][scan_2][2]==time) && (RACH[x][scan_2][1]==upbound_preamble)  && (RACH[x][scan_2] [7]==0) && (RACH[x][scan_2][8]==0) ) //preamble_send_time=time 且超過重傳上限=10 所以upbound_preamble=10實際就是第十一回合
 									{
 										RACH[x][scan_2][8]=1;
 										RACH[x][cell_diveces_number][8]+=1;
 									}
 									
-								
 									if((RACH[x][scan_2][2]==time) && (RACH[x][scan_2][1]<upbound_preamble)  && (RACH[x][scan_2][7]==0) && (RACH[x][scan_2][8]==0) ) //preamble_send_time=time 且沒有超過重傳上限=10
 									{
 										buffer_pre[pre][0]=scan_2;	//哪幾列這次有重新抓preamble的	建立清單					
-										RACH[x][scan_2][0]=(int)((lcgrand(3)*preambles));;	//隨機產生preamble
+										RACH[x][scan_2][0]=(int)((lcgrand(3)*preambles));	//隨機產生preamble
 
 										buffer_pre[pre][1]=RACH[x][scan_2][0];	//把preamble儲存
 
@@ -169,19 +162,78 @@ int main(void)
 								}
 
 								
-								double sum_preamble_collision_time=0;	//累計pream傳送發生碰撞的次數
+								double sum_preamble_collision_time=0;		//累計pream傳送發生碰撞的次數
+								double sum_preamble_collision_num=0;		//累計pream傳送發生碰撞的數量 
+								double sum_preamble_noncollision_time=0;	//累計pream傳送無發生碰撞的次數
+								double sum_preamble_noncollision_num=0;		//累計pream傳送無發生碰撞的數量
 								for(int scan_buffer_pre=0; scan_buffer_pre<preambles; scan_buffer_pre++)	//掃描BOX_pre內每個devices的preamble
 								{
-									if(BOX_pre[scan_buffer_pre]>=2)//若該編號的BOX超過兩個DEVICEs則代表該PREAMBLE碰撞了
+									if(BOX_pre[scan_buffer_pre]>=2)			//若該編號的BOX超過兩個DEVICEs則代表該PREAMBLE碰撞了
 									{
-										sum_preamble_collision_time++;//累計幾次pream 的傳送發生碰撞
+										sum_preamble_collision_time++;		//累計幾次pream 的傳送發生碰撞
+										sum_preamble_collision_num += BOX_pre[scan_buffer_pre];
+									}
+									else if(BOX_pre[scan_buffer_pre]==1)	//若該編號的BOX為1個DEVICEs則代表該PREAMBLE為預選目標
+									{
+										sum_preamble_noncollision_time++;
+										sum_preamble_noncollision_num += BOX_pre[scan_buffer_pre];
 									}
 								}
-
-
-								if(pre>1)	//計算 collision nodes 的backoff 
-								{
-									for(int Token=0; Token<pre; Token++) //把每個輪流搬出來暫存 相減等於零 用以判斷preamble是否重複
+								
+							
+								if(pre>=1)
+								{			
+									int count = sum_preamble_noncollision_time - RAR_amount;
+									int fail_num = sum_preamble_collision_num + count;
+									
+									//計算 non-collision nodes 超過傳送限制的 backoff 
+									for(int scan_buffer_pre=0; scan_buffer_pre<preambles; scan_buffer_pre++)
+									{
+										if(BOX_pre[scan_buffer_pre]==1)
+										{
+											for(int member=0; member<pre; member++)
+											{
+												if((count>0) && (buffer_pre[member][1]==scan_buffer_pre))
+												{
+													count = count - 1;
+													int index_1=1000;
+													index_1=buffer_pre[member][0];
+	
+													int backoff_6=0;
+													int back_win=0;
+													back_win = BackoffWin(fail_num, ((sim_time/inter_random_access_cycle)-(time/inter_random_access_cycle)-2));
+													backoff_6=RACH[x][index_1][2]+RaResponseTime+(int)(lcgrand(4)*back_win)*inter_random_access_cycle;
+												
+													if(backoff_6%inter_random_access_cycle==2)
+													{
+														RACH[x][index_1][2]=backoff_6;
+													}
+													else
+													{
+														if(backoff_6%inter_random_access_cycle==1)
+														{
+															RACH[x][index_1][2]=backoff_6+1;
+														}
+														else
+														{
+															RACH[x][index_1][2]=backoff_6+((inter_random_access_cycle+1)-(backoff_6-1)%inter_random_access_cycle);
+														}
+													}
+													RACH[x][index_1][7]=0;
+												}
+												else if(buffer_pre[member][1]==scan_buffer_pre)
+												{
+													int index_2=1000;
+													index_2=buffer_pre[member][0];
+													RACH[x][index_2][7]=1;
+													RACH[x][cell_diveces_number][7]+=1;
+												}	
+											} 
+										} 
+									}	//END//計算 non-collision nodes 超過傳送限制的 backoff 
+									
+									//計算 collision nodes 的backoff 
+									for(int Token=0; Token<pre; Token++)
 									{
 										int buffer_EZ[1]={0};				//暫存器
 										buffer_EZ[0]=buffer_pre[Token][1];	//暫存
@@ -202,7 +254,9 @@ int main(void)
 											index_1=buffer_pre[Token][0];
 
 											int backoff_6=0;
-											backoff_6=RACH[x][index_1][2]+RaResponseTime+(int)((lcgrand(4)*(1+Wbo)));
+											int back_win=0;
+											back_win = BackoffWin(fail_num, ((sim_time/inter_random_access_cycle)-(time/inter_random_access_cycle)-2));
+											backoff_6=RACH[x][index_1][2]+RaResponseTime+(int)(lcgrand(4)*back_win)*inter_random_access_cycle;			
 										
 											if(backoff_6%inter_random_access_cycle==2)
 											{
@@ -224,68 +278,11 @@ int main(void)
 										buffer_pre[Token][1]=buffer_EZ[0];	//把搬出來的暫存preambel放回原本位置
 										buffer_EZ[0]=0;
 
-									}
-								}
-								
-								double sum_preamble_noncollision_time=0;
-								if(pre>1)	//計算 non-collision nodes 超過傳送限制的 backoff 
-								{
-									for(int scan_buffer_pre=0; scan_buffer_pre<preambles; scan_buffer_pre++)	//掃描BOX_pre內每個devices的preamble
-									{
-										if(BOX_pre[scan_buffer_pre]==1)	//若該編號的BOX為1個DEVICEs則代表該PREAMBLE為預選目標
-										{
-											sum_preamble_noncollision_time++;
-										}
-									}
-								
-									int count = sum_preamble_noncollision_time - RAR_amount;
-									for(int scan_buffer_pre=preambles-1; scan_buffer_pre>=0; scan_buffer_pre--)	//掃描BOX_pre內每個devices的preamble
-									{
-										if(BOX_pre[scan_buffer_pre]==1)
-										{
-											for(int member=0; member<pre; member++)
-											{	
-												if((count>0) && (buffer_pre[member][1]==scan_buffer_pre))
-												{
-													count = count - 1;
-													int index_1=1000;
-													index_1=buffer_pre[member][0];
-	
-													int backoff_6=0;
-													backoff_6=RACH[x][index_1][2]+RaResponseTime+(int)((lcgrand(4)*(1+Wbo)));
-												
-													if(backoff_6%inter_random_access_cycle==2)
-													{
-														RACH[x][index_1][2]=backoff_6;
-													}
-													else
-													{
-														if(backoff_6%inter_random_access_cycle==1)
-														{
-															RACH[x][index_1][2]=backoff_6+1;
-														}
-														else
-														{
-															RACH[x][index_1][2]=backoff_6+((inter_random_access_cycle+1)-(backoff_6-1)%inter_random_access_cycle);
-														}
-													}
-													RACH[x][index_1][7]=0;
-												}	
-												else if(buffer_pre[member][1]==scan_buffer_pre)
-												{
-													int index_2=1000;
-													index_2=buffer_pre[member][0];
-													RACH[x][index_2][7]=1;
-													RACH[x][cell_diveces_number][7]+=1;
-												}
-														
-											} 
-										} 
-										
-									} //END//掃描BOX_pre內每個devices的preamble
+									}	//END//計算 collision nodes 的backoff 
 									
-								} //END//計算 non-collision nodes 超過傳送限制的 backoff 
-							}
+								} 
+								
+							}	//END// 2st subframe RACH process 
 
 						} //END//每個cell分別 run simulation 
 						
@@ -308,33 +305,59 @@ int main(void)
 						}
 						
 						
+						/* Analyze data and record to excel*/
+						if(time==1)
+						{
+							timePtr <<"Time(ms)"<<","<<"Success"<<","<<"TryOver"<<","<<"Timeout"<<","<<"M"<<"," \
+									<<"Success Rate"<<","<<"Failure Rate"<<","<<"TAD"<<","<<"Access Delay"<<"," \
+									<<endl;	
+						}
 						
-						double average_delay=0;			//HT_success[HT_S_x]全部累加/HT_S_x
-						double random_access_success=0;	//統計模擬的
-//						double average_pream_collision_prob=0;	//collision pream的次數/總共有多少次pream傳送機會
-//						float RACH_round_pream=0; 		//整個完成RA後 時間內有多少次RACH機會*preamble數目
+						float success_rate=0;	// success rate
+						float failure_rate=0;	// failure rate
+						float average_success_access_delay=0;	// time-limited access delay(TAD)
+						float average_access_delay=0;	// all devices access delay
 						
-						float HT_S_x=0;
-						float sum_RA_success_time=0;	//累計RA成功device的成功時間
+						int HT_S_x=0;	//success device
+						int TO_T_x=0;	//try over times device
+						int TO_x=0;		//timeout device
+						double sum_RA_success_time=0;	//calculate device success time
+						double sum_RA_access_time=0;	//calculate device access time
 									
 						for(int xd=0; xd<cell; xd++) 
 						{
 							for(int yd=0; yd<BOX[xd]; yd++)
 							{	
-								if(RACH[xd][yd][7]==1)
+//								if((RACH[xd][yd][7]==0) && (RACH[xd][yd][8]==0))
+								if(RACH[xd][yd][3]>sim_time)
+								{
+									TO_x++;
+									sum_RA_access_time += sim_time;
+								}
+								else if(RACH[xd][yd][8]==1)
+								{
+									TO_T_x++;
+									sum_RA_access_time = sum_RA_access_time + RACH[xd][yd][3] + RaResponseTime;
+								}
+								else if(RACH[xd][yd][7]==1)
 								{
 									HT_S_x++;
 									sum_RA_success_time += RACH[xd][yd][3];
+									sum_RA_access_time += RACH[xd][yd][3];
 								}
 							}
 						}
-						average_delay=sum_RA_success_time/HT_S_x;
-						random_access_success=(float)HT_S_x/(M*sim_device_random_round*sim_round);	//平均成功人的比例
 						
-						timePtr <<time<<","<<sum_RA_success_time<<","<<HT_S_x<<","<<average_delay<<"," \
-								<<random_access_success<<","<<endl;
+						success_rate=(float)HT_S_x/M;
+						failure_rate = 1 - success_rate;
+						average_success_access_delay = (float)(sum_RA_success_time/HT_S_x);
+						average_access_delay = (float)(sum_RA_access_time/M);
 						
-//					 	average_pream_collision_prob=sum_preamble_collision_time/(RACH_round_pream);
+						timePtr <<time<<","<<HT_S_x<<","<<TO_T_x<<","<<TO_x<<","<<M<<"," \
+								<<success_rate<<","<<failure_rate<<","<<average_success_access_delay<<"," \
+								<<average_access_delay<<","<<endl;
+								
+								
 					}//END//共模擬多少時間
 					
 				}//END//每個cell devices數目的組合要跑的次數
@@ -344,6 +367,7 @@ int main(void)
 		}//end of simecase
 		
 		filePtr.close();
+		timePtr.close();
 		cout<< "================== End =================" << endl;
 	
 	}//END//Beginning for loop

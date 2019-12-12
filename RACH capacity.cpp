@@ -11,30 +11,27 @@
 #include "BackoffWin.c" 
 using namespace std;
 
-int sim_time=100;				//系統模擬時間
+int sim_time=800;				//系統模擬時間
 
 int sim_device_random_round=1;	//每個cell內的devices數目要random幾次
 int	sim_round=1;				//CELL內devices數目的每種組合 要各模擬幾回合
 
 const int cell=1;
-const int list=1001;				//Devices Number+1=M+1
+const int list=1001;			//Devices Number+1=M+1
 const int parameter=16;
 
 int RACH[cell][list][parameter]={0};	//儲存模擬資料 RACH[x][y][z]
 
-const int MM=100;				//the amount of MTC devices (Device number)
-const int PREM=54;				//preambles
-const int N=cell;				//cell number
+const int MM=1000;	//the amount of MTC devices (Device number)
+const int PREM=54;	//preambles
+const int N=cell;	//cell number
+const int CWin=3;	//CW window
 
 const int inter_random_access_cycle=10;	//每一次RACH機會間隔多久
-const int upbound_preamble=3;	//preamble重新傳送次數上限
+const int upbound_preamble=5;	//preamble重新傳送次數上限
 
-const int RaResponseTime=20;				//RAR listen time, 20ms
-const int RAR_amount=5; 					//一次可以回的RAR數目
-
-const int Wbo=20;
-float Imaxcomponent=((Wbo+7)/inter_random_access_cycle)+1;
-int OverlapRegion=Imaxcomponent;
+const int RaResponseTime=20;	//RAR listen time, 20ms
+const int RAR_amount=15; 		//一次可以回的RAR數目
 
 int BOX[cell]={0};	//儲存每個CELL的devices數目
 
@@ -67,9 +64,10 @@ int main(void)
 		// All detail content
 		ofstream filePtr;
 		stringstream filePtr_name, filePtr_name_t;
-		filePtr_name << "Test Simulation RACH Capacity N=" << simulation_case_M[simulation_case_index_N] 
-					<< ", Prms=" << simulation_case_N[simulation_case_index_N] 
-					<< ", T=" << sim_time;
+		filePtr_name << "Test Simulation RACH Capacity M=" << simulation_case_M[simulation_case_index_N] \
+					<< ", Prms=" << simulation_case_N[simulation_case_index_N] \
+					<< ", T=" << sim_time
+					<< ", CW=" << CWin;
 		filePtr_name_t << filePtr_name.str() << ".csv";
 		string filePtr_filename = filePtr_name_t.str();
 		filePtr.open(filePtr_filename.c_str(), ios::out);
@@ -109,7 +107,6 @@ int main(void)
 				
 					int RACH[cell][list][parameter]={0};
 				
-		
 					for(int xx=0; xx<cell; xx++)
 					{
 						for(int list1=0; list1<BOX[xx] ;list1++)	//把所有Devices preamble_send_time=22 初始化 皆由第22時間點傳送
@@ -127,7 +124,7 @@ int main(void)
 						{
 							int cell_diveces_number=0;	//抓出這個CELL devices的數目
 							cell_diveces_number=BOX[x];
-							RACH[x][cell_diveces_number][0]=0;//把統記(成功+失敗)的計數器歸零
+							RACH[x][cell_diveces_number][0]=0;	//把統記(成功+失敗)的計數器歸零
 
 							if(time%inter_random_access_cycle==2)	// 2st subframe 有RACH機會
 							{
@@ -141,6 +138,8 @@ int main(void)
 									{
 										RACH[x][scan_2][8]=1;
 										RACH[x][cell_diveces_number][8]+=1;
+										RACH[x][scan_2][2] = RACH[x][scan_2][3]; 
+										RACH[x][scan_2][3] += RaResponseTime;
 									}
 									
 									if((RACH[x][scan_2][2]==time) && (RACH[x][scan_2][1]<upbound_preamble)  && (RACH[x][scan_2][7]==0) && (RACH[x][scan_2][8]==0) ) //preamble_send_time=time 且沒有超過重傳上限=10
@@ -184,7 +183,6 @@ int main(void)
 								if(pre>=1)
 								{			
 									int count = sum_preamble_noncollision_time - RAR_amount;
-									int fail_num = sum_preamble_collision_num + count;
 									
 									//計算 non-collision nodes 超過傳送限制的 backoff 
 									for(int scan_buffer_pre=0; scan_buffer_pre<preambles; scan_buffer_pre++)
@@ -201,7 +199,7 @@ int main(void)
 	
 													int backoff_6=0;
 													int back_win=0;
-													back_win = BackoffWin(fail_num, ((sim_time/inter_random_access_cycle)-(time/inter_random_access_cycle)-2));
+													back_win = BackoffWin(RACH[x][index_1][1], CWin);
 													backoff_6=RACH[x][index_1][2]+RaResponseTime+(int)(lcgrand(4)*back_win)*inter_random_access_cycle;
 												
 													if(backoff_6%inter_random_access_cycle==2)
@@ -255,7 +253,7 @@ int main(void)
 
 											int backoff_6=0;
 											int back_win=0;
-											back_win = BackoffWin(fail_num, ((sim_time/inter_random_access_cycle)-(time/inter_random_access_cycle)-2));
+											back_win = BackoffWin(RACH[x][index_1][1], CWin);
 											backoff_6=RACH[x][index_1][2]+RaResponseTime+(int)(lcgrand(4)*back_win)*inter_random_access_cycle;			
 										
 											if(backoff_6%inter_random_access_cycle==2)
@@ -328,8 +326,7 @@ int main(void)
 						{
 							for(int yd=0; yd<BOX[xd]; yd++)
 							{	
-//								if((RACH[xd][yd][7]==0) && (RACH[xd][yd][8]==0))
-								if(RACH[xd][yd][3]>sim_time)
+								if((time==sim_time) && (RACH[xd][yd][7]==0) && (RACH[xd][yd][8]==0))
 								{
 									TO_x++;
 									sum_RA_access_time += sim_time;
@@ -337,7 +334,7 @@ int main(void)
 								else if(RACH[xd][yd][8]==1)
 								{
 									TO_T_x++;
-									sum_RA_access_time = sum_RA_access_time + RACH[xd][yd][3] + RaResponseTime;
+									sum_RA_access_time = sum_RA_access_time + RACH[xd][yd][3];
 								}
 								else if(RACH[xd][yd][7]==1)
 								{

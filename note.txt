@@ -1,0 +1,17 @@
+[0] 	preamble		|| 
+[1] 	preamble tran round	|| 
+[2] 	preamble send time	|| 
+[3] 	RAR listen window	|| 
+[4] 	Msg3 tran round		||	
+[5] 	Msg3 send time		||
+[6] 	Msg3 ACK time 		|| 
+[7] 	stage 			||
+[8] 	over preamble tran round||
+[9] 	mac-ContentionResolutionTimer	||   
+[10] 	real-timer		|| 
+[11] 	Msg4 listen time	|| 
+[12] 	Msg4 tran round		||   
+[13] 	Msg4 Ack time		||  
+[14]	P_time			|| 
+[15]	M34_time		||
+

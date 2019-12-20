@@ -7,37 +7,18 @@
 #include <time.h>
 #include <fstream>
 #include "lcgrand.c"
-#include <assert.h>
 #include "BackoffWin.c" 
 using namespace std;
 
-int sim_time=800;				//¨t²Î¼ÒÀÀ®É¶¡
 
-int sim_device_random_round=1;	//¨C­Ócell¤ºªºdevices¼Æ¥Ø­nrandom´X¦¸
-int	sim_round=1;				//CELL¤ºdevices¼Æ¥Øªº¨CºØ²Õ¦X ­n¦U¼ÒÀÀ´X¦^¦X
-
-const int cell=1;
-const int list=1001;			//Devices Number+1=M+1
-const int parameter=16;
-
-int RACH[cell][list][parameter]={0};	//Àx¦s¼ÒÀÀ¸ê®Æ RACH[x][y][z]
-
-const int MM=1000;	//the amount of MTC devices (Device number)
-const int PREM=54;	//preambles
-const int N=cell;	//cell number
-const int CWin=3;	//CW window
-
-const int inter_random_access_cycle=10;	//¨C¤@¦¸RACH¾÷·|¶¡¹j¦h¤[
-const int upbound_preamble=5;	//preamble­«·s¶Ç°e¦¸¼Æ¤W­­
-
-const int RaResponseTime=20;	//RAR listen time, 20ms
-const int RAR_amount=15; 		//¤@¦¸¥i¥H¦^ªºRAR¼Æ¥Ø
-
-int BOX[cell]={0};	//Àx¦s¨C­ÓCELLªºdevices¼Æ¥Ø
+int** assign_mem2(int **pArray, unsigned int size1, unsigned int size2);
+int*** assign_mem3(int ***pArray, unsigned int size1, unsigned int size2, unsigned int size3);
+void release_mem2(int **pArray, unsigned int size1);
+void release_mem3(int ***pArray, unsigned int size1, unsigned int size2);
 
 
-/*Random²£¥Í¨C­ÓCELLªºDevices¼Æ¥Ø*/
-int num=0;
+const int inter_random_access_cycle=10;	//ï¿½Cï¿½@ï¿½ï¿½RACHï¿½ï¿½ï¿½|ï¿½ï¿½ï¿½jï¿½hï¿½[
+const int RaResponseTime=20;			//RAR listen time, 20ms
 
 
 /*
@@ -48,327 +29,592 @@ preamble|| preamble tran round	|| preamble send time	|| RAR listen window|| Msg3
 
 int main(void)
 {
+	//simulation time
+	int simulation_case_time[3]={250, 550, 850};
+	int time_index = sizeof(simulation_case_time)/sizeof(simulation_case_time[0]);
+	//CWin
+	int simulation_case_CWin[3]={3, 4, 5};
+	int CWin_index = sizeof(simulation_case_CWin)/sizeof(simulation_case_CWin[0]);
+	//the amount of MTC devices (Device number)
+	// int simulation_case_M[12]={	250, 500, 750, 1000, \
+	// 							1250, 1500, 1750, 2000 \
+	// 							2250, 2500, 2750, 3000};
+	int simulation_case_M[2]={10, 50};
+	int sim_index = sizeof(simulation_case_M)/sizeof(simulation_case_M[0]);
+	//preambles
+	int simulation_case_PREM[1]={54};
+	int PREM_index = sizeof(simulation_case_PREM)/sizeof(simulation_case_PREM[0]);
+	//upbound retrans preamble
+	int simulation_case_RetransMAX[1]={10};
+	int RetransMAX_index = sizeof(simulation_case_RetransMAX)/sizeof(simulation_case_RetransMAX[0]);
+	//RAR amount
+	int simulation_case_RAR[1]={15};
+	int RAR_index = sizeof(simulation_case_RAR)/sizeof(simulation_case_RAR[0]);
 
-	//int simulation_case_M[7]={10,20,50,100,200,500,1000};
-	//int simulation_case_M[11]={10,20,50,100,200,500,600,700,800,900,1000};
-	//int simulation_case_M[11]={70,140,350,700,1400,3500,4200,4900,5600,6300,7000};
-	//int simulation_case_M[7]={70,140,350,700,1400,3500,7000};
-	//int simulation_case_M[1]={1000};
-	//int simulation_case_M[9]={10,20,50,100,200,300,400,500,600};
 
-	int simulation_case_N[1]={PREM};	//preambles
-	int simulation_case_M[1]={MM};		//the amount of MTC devices (Device number)
-
-	for(int simulation_case_index_N=0; simulation_case_index_N<=0; simulation_case_index_N++) //Beginning for loop
+	int i=1;
+	for(int simulation_case_index_RAR=0; simulation_case_index_RAR<RAR_index; simulation_case_index_RAR++) // RAR amount loop
 	{
-		// All detail content
-		ofstream filePtr;
-		stringstream filePtr_name, filePtr_name_t;
-		filePtr_name << "Test Simulation RACH Capacity M=" << simulation_case_M[simulation_case_index_N] \
-					<< ", Prms=" << simulation_case_N[simulation_case_index_N] \
-					<< ", T=" << sim_time
-					<< ", CW=" << CWin;
-		filePtr_name_t << filePtr_name.str() << ".csv";
-		string filePtr_filename = filePtr_name_t.str();
-		filePtr.open(filePtr_filename.c_str(), ios::out);
-		
-		// Time for each ms
-		ofstream timePtr;
-		stringstream timePtr_name;
-		timePtr_name << filePtr_name.str() << " Time.csv";
-		string timePtr_filename = timePtr_name.str();
-		timePtr.open(timePtr_filename.c_str(), ios::out);
-		
-		
-		const int preambles=simulation_case_N[simulation_case_index_N];
-		//const int preambles=54;
-		cout<<endl;
-
-		for(int simulation_case_index_M=0; simulation_case_index_M<=0; simulation_case_index_M++)
+		for(int simulation_case_index_RetransMAX=0; simulation_case_index_RetransMAX<RetransMAX_index; simulation_case_index_RetransMAX++)	//upbound retrans preamble loop
 		{
-			
-			int M=simulation_case_M[simulation_case_index_M];
-			//int M=100;				
-
-			for(int sim_device_random_round_count=1; sim_device_random_round_count<=sim_device_random_round; sim_device_random_round_count++)
+			for(int simulation_case_index_PREM=0; simulation_case_index_PREM<PREM_index; simulation_case_index_PREM++)	// PREM loop
 			{
-				int BOX[cell]={0};		//¨C­ÓROUND»Ý­nÂk¹sªº°Ñ¼Æ
-				int num=0;				//¨C­ÓROUND»Ý­nÂk¹sªº°Ñ¼Æ
-				
-				for(int g=0; g<M; g++)
+				for(int simulation_case_index_time=0; simulation_case_index_time<time_index; simulation_case_index_time++)	// sim_time loop
 				{
-					num=((int)(10000*lcgrand(6)))%N;
-					BOX[num]=BOX[num]+1;
-				}
-
-				
-				for(int sim_round_count=1; sim_round_count<=sim_round; sim_round_count++)	//¨C­Ócell devices¼Æ¥Øªº²Õ¦X­n¶]ªº¦¸¼Æ
-				{
-				
-					int RACH[cell][list][parameter]={0};
-				
-					for(int xx=0; xx<cell; xx++)
+					for(int simulation_case_index_CWin=0; simulation_case_index_CWin<CWin_index; simulation_case_index_CWin++)	// CWin loop
 					{
-						for(int list1=0; list1<BOX[xx] ;list1++)	//§â©Ò¦³Devices preamble_send_time=22 ªì©l¤Æ ¬Ò¥Ñ²Ä22®É¶¡ÂI¶Ç°e
+						for(int simulation_case_index_M=0; simulation_case_index_M<sim_index; simulation_case_index_M++)	// M loop
 						{
-							RACH[xx][list1][2]=2+RaResponseTime;
-						}
-					}
-					int flag[cell]={0};	//¥Î¨Ó¿ë§O¥u»Ý¦L¤@¦¸¥þ³¡Devices§¹¦¨ªº®É¶¡ //flag=0ÁÙ¥¼¦L¥X// flag =1¦L¥X
-					
-					
-					//Main function
-					for(int time=1; time<=sim_time; time++)	//¦@¼ÒÀÀ¦h¤Ö®É¶¡
-					{
-						for(int x=0; x<cell; x++)	//¨C­Ócell¤À§O run simulation
-						{
-							int cell_diveces_number=0;	//§ì¥X³o­ÓCELL devicesªº¼Æ¥Ø
-							cell_diveces_number=BOX[x];
-							RACH[x][cell_diveces_number][0]=0;	//§â²Î°O(¦¨¥\+¥¢±Ñ)ªº­p¼Æ¾¹Âk¹s
+							cout << "G=" << i \
+								<< ", T=" << simulation_case_time[simulation_case_index_time] \
+								<< ", CW=" << simulation_case_CWin[simulation_case_index_CWin] \
+								<< ", M=" << simulation_case_M[simulation_case_index_M] \
+								<< ", RAR=" << simulation_case_RAR[simulation_case_index_RAR] \
+								<< ", ReMAX=" << simulation_case_RetransMAX[simulation_case_index_RetransMAX] \
+								<< ", PREM=" << simulation_case_PREM[simulation_case_index_PREM] \
+								<< " --- Start" << endl;
 
-							if(time%inter_random_access_cycle==2)	// 2st subframe ¦³RACH¾÷·|
-							{
-								int pre=0;				
-								int buffer_pre[MM][2]={0};	//§ì¥Xpreamble ¥X¨Ó¤ñ¹ï¬O§_¸I¼²
-								int BOX_pre[PREM]={0};		//¼È¦spreamble¨ì ¸Ó½s¸¹ªºBOX
-								
-								for(int scan_2=0; scan_2<BOX[x]; scan_2++)
-								{
-									if((RACH[x][scan_2][2]==time) && (RACH[x][scan_2][1]==upbound_preamble)  && (RACH[x][scan_2] [7]==0) && (RACH[x][scan_2][8]==0) ) //preamble_send_time=time ¥B¶W¹L­«¶Ç¤W­­=10 ©Ò¥Hupbound_preamble=10¹ê»Ú´N¬O²Ä¤Q¤@¦^¦X
-									{
-										RACH[x][scan_2][8]=1;
-										RACH[x][cell_diveces_number][8]+=1;
-										RACH[x][scan_2][2] = RACH[x][scan_2][3]; 
-										RACH[x][scan_2][3] += RaResponseTime;
-									}
-									
-									if((RACH[x][scan_2][2]==time) && (RACH[x][scan_2][1]<upbound_preamble)  && (RACH[x][scan_2][7]==0) && (RACH[x][scan_2][8]==0) ) //preamble_send_time=time ¥B¨S¦³¶W¹L­«¶Ç¤W­­=10
-									{
-										buffer_pre[pre][0]=scan_2;	//­þ´X¦C³o¦¸¦³­«·s§ìpreambleªº	«Ø¥ß²M³æ					
-										RACH[x][scan_2][0]=(int)((lcgrand(3)*preambles));	//ÀH¾÷²£¥Ípreamble
-
-										buffer_pre[pre][1]=RACH[x][scan_2][0];	//§âpreambleÀx¦s
-
-										int pre_serial=0;		//¼È¦spreamble
-										pre_serial=RACH[x][scan_2][0];
-										BOX_pre[pre_serial]++;	//¼È¦spreamble¨ì ¸Ó½s¸¹ªºBOX  //°²³]preamble=36  BOX_pre[36]++
-
-										pre++;
-									
-										RACH[x][scan_2][3]=time+RaResponseTime;	//¶Ç°epreamble«á¡A¦btime+20ªº®É¶¡Å¥¨ìRAR
-										RACH[x][scan_2][1]++;			//preamble¶Ç°e¦¸¼Æ+1   !!!!!!!  ¦]¬°¥ý¶]§¹¤@¦¸¤~+1  !!!!!!!
-									}
-								}
-
-								
-								double sum_preamble_collision_time=0;		//²Ö­ppream¶Ç°eµo¥Í¸I¼²ªº¦¸¼Æ
-								double sum_preamble_collision_num=0;		//²Ö­ppream¶Ç°eµo¥Í¸I¼²ªº¼Æ¶q 
-								double sum_preamble_noncollision_time=0;	//²Ö­ppream¶Ç°eµLµo¥Í¸I¼²ªº¦¸¼Æ
-								double sum_preamble_noncollision_num=0;		//²Ö­ppream¶Ç°eµLµo¥Í¸I¼²ªº¼Æ¶q
-								for(int scan_buffer_pre=0; scan_buffer_pre<preambles; scan_buffer_pre++)	//±½´yBOX_pre¤º¨C­Ódevicesªºpreamble
-								{
-									if(BOX_pre[scan_buffer_pre]>=2)			//­Y¸Ó½s¸¹ªºBOX¶W¹L¨â­ÓDEVICEs«h¥Nªí¸ÓPREAMBLE¸I¼²¤F
-									{
-										sum_preamble_collision_time++;		//²Ö­p´X¦¸pream ªº¶Ç°eµo¥Í¸I¼²
-										sum_preamble_collision_num += BOX_pre[scan_buffer_pre];
-									}
-									else if(BOX_pre[scan_buffer_pre]==1)	//­Y¸Ó½s¸¹ªºBOX¬°1­ÓDEVICEs«h¥Nªí¸ÓPREAMBLE¬°¹w¿ï¥Ø¼Ð
-									{
-										sum_preamble_noncollision_time++;
-										sum_preamble_noncollision_num += BOX_pre[scan_buffer_pre];
-									}
-								}
-								
+							// All MTC detail for each ms
+							ofstream filePtr;
+							stringstream filePtr_name, filePtr_name_t;
+							filePtr_name << "RACH " \
+										<< ", T=" << simulation_case_time[simulation_case_index_time] \
+										<< ", CW=" << simulation_case_CWin[simulation_case_index_CWin] \
+										<< ", M=" << simulation_case_M[simulation_case_index_M] \
+										<< ", RAR=" << simulation_case_RAR[simulation_case_index_RAR] \
+										<< ", ReMAX=" << simulation_case_RetransMAX[simulation_case_index_RetransMAX] \
+										<< ", PREM=" << simulation_case_PREM[simulation_case_index_PREM];
+							// filePtr_name_t << filePtr_name.str() << ".csv";
+							// string filePtr_filename = filePtr_name_t.str();
+							// filePtr.open(filePtr_filename.c_str(), ios::out);
 							
-								if(pre>=1)
-								{			
-									int count = sum_preamble_noncollision_time - RAR_amount;
-									
-									//­pºâ non-collision nodes ¶W¹L¶Ç°e­­¨îªº backoff 
-									for(int scan_buffer_pre=0; scan_buffer_pre<preambles; scan_buffer_pre++)
+							// Time for each ms
+							ofstream timePtr;
+							stringstream timePtr_name;
+							timePtr_name << filePtr_name.str() << " Time.csv";
+							string timePtr_filename = timePtr_name.str();
+							timePtr.open(timePtr_filename.c_str(), ios::out);
+							
+							// Parameters
+							int continue_flg=1;
+							int trytime=0;
+
+							int M=simulation_case_M[simulation_case_index_M];
+							int M_tmp=0;
+							int cell=1;
+							int list=M+1;		//Devices Number+1=M+1
+							int parameter=16;
+							int rem_num = 0;
+							int rem_num_tmp = 0;
+							int rem_num_tmp_tmp = 0;
+							int RACH_tmp[cell][list][parameter]={0};
+							int sim_time=simulation_case_time[simulation_case_index_time];
+							int start_time=1;
+							int end_time=sim_time;
+							int CWin=simulation_case_CWin[simulation_case_index_CWin];
+							int preambles=simulation_case_PREM[simulation_case_index_PREM];
+							int upbound_preamble=simulation_case_RetransMAX[simulation_case_index_RetransMAX];
+							int RAR_amount=simulation_case_RAR[simulation_case_index_RAR];
+							
+							float success_rate=0;	// success rate
+							float failure_rate=0;	// failure rate
+							float average_success_access_delay=0;	// time-limited access delay(TAD)
+							float average_access_delay=0;	// all devices access delay
+							
+							int HT_S_x=0;		//success device
+							int HT_S_x_tmp=0;	//success device
+							int HT_S_x_intime=0;
+							int TO_T_x=0;		//try over times device
+							int TO_T_x_tmp=0;	//try over times device
+							int TO_T_x_intime=0;
+							int TO_x=0;			//timeout device	
+							double sum_RA_success_time=0;	//calculate device success time
+							double sum_RA_access_time=0;	//calculate device access time
+							double sum_RA_access_time_tmp=0;	//calculate device access time
+							
+							while(continue_flg)
+							{
+								continue_flg = 0; 
+								if(trytime>0)
+								{
+									list += rem_num;
+									M += rem_num;
+									start_time += sim_time;
+									end_time += sim_time;
+								}
+								int BOX[cell]={0};		//ï¿½xï¿½sï¿½Cï¿½ï¿½CELLï¿½ï¿½devicesï¿½Æ¥ï¿½
+								for(int g=0; g<M; g++)
+								{
+									BOX[0]=BOX[0]+1;
+								};
+						
+						
+								// int RACH[cell][list][parameter]={0};
+								int*** RACH;
+								RACH = assign_mem3(&RACH[0], cell, list, parameter);
+							
+								for(int xx=0; xx<cell; xx++)
+								{
+									// ï¿½xï¿½}ï¿½Mï¿½ï¿½ 
+									for(int list1=0; list1<list; list1++)
 									{
-										if(BOX_pre[scan_buffer_pre]==1)
+										for(int p=0; p<parameter; p++)
 										{
-											for(int member=0; member<pre; member++)
+											RACH[xx][list1][p]=0;
+										} 			
+									}
+									//2st subframe send RAR request
+									for(int list1=0; list1<BOX[xx]; list1++)	//ï¿½ï¿½Ò¦ï¿½Devices preamble_send_time=22 ï¿½ï¿½lï¿½ï¿½ ï¿½Ò¥Ñ²ï¿½22ï¿½É¶ï¿½ï¿½Iï¿½Ç°e
+									{
+										RACH[xx][list1][2]=2+start_time-1;
+									}
+									
+									if(trytime>0)
+									{
+										for(int list1=0; list1<rem_num; list1++)
+										{
+											for(int p=0; p<parameter; p++)
 											{
-												if((count>0) && (buffer_pre[member][1]==scan_buffer_pre))
+												RACH[xx][list1][p]=RACH_tmp[xx][list1][p];
+											} 			
+										}
+										rem_num_tmp = rem_num;
+										rem_num=0;
+									}
+								}
+									
+								int** buffer_pre;	//ï¿½ï¿½Xpreambleï¿½Xï¿½Ó¤ï¿½ï¿½Oï¿½_ï¿½Iï¿½ï¿½
+								buffer_pre = assign_mem2(&buffer_pre[0], M, 2);
+								// int buffer_pre[M][2]={0};	//ï¿½ï¿½Xpreambleï¿½Xï¿½Ó¤ï¿½ï¿½Oï¿½_ï¿½Iï¿½ï¿½
+								int BOX_pre[preambles]={0};	//ï¿½È¦spreambleï¿½ï¿½Ó½sï¿½ï¿½ï¿½ï¿½BOX
+								//Main function
+								for(int time=start_time; time<=end_time; time++)	//ï¿½@ï¿½Ó¼ï¿½ï¿½ï¿½ï¿½Ï¶ï¿½ï¿½É¶ï¿½
+								{		
+									for(int x=0; x<cell; x++)	//ï¿½Cï¿½ï¿½cellï¿½ï¿½ï¿½O run simulation
+									{
+										int cell_diveces_number=BOX[x];	//ï¿½ï¿½Xï¿½oï¿½ï¿½CELL devicesï¿½ï¿½ï¿½Æ¥ï¿½
+						
+										if(time%inter_random_access_cycle==2)	// 2st subframe ï¿½ï¿½RACHï¿½ï¿½ï¿½|
+										{
+											cout<<"time: "<<time<<", trytime: "<<trytime<<", M: "<<M<<", rem_num_tmp: "<<rem_num_tmp<<endl;
+											int pre=0;
+											for(int i=0; i<M; i++)
+											{
+												for(int j=0; j<2; j++)
 												{
-													count = count - 1;
-													int index_1=1000;
-													index_1=buffer_pre[member][0];
-	
-													int backoff_6=0;
-													int back_win=0;
-													back_win = BackoffWin(RACH[x][index_1][1], CWin);
-													backoff_6=RACH[x][index_1][2]+RaResponseTime+(int)(lcgrand(4)*back_win)*inter_random_access_cycle;
+													buffer_pre[i][j]=0;
+												}
+											}
+											for(int i=0; i<preambles; i++)
+											{
+												BOX_pre[i]=0;
+											}					
+											
+											for(int scan_2=0; scan_2<cell_diveces_number; scan_2++)
+											{
+												if((RACH[x][scan_2][2]==time) && (RACH[x][scan_2][1]==upbound_preamble) && (RACH[x][scan_2][7]==0) && (RACH[x][scan_2][8]==0)) //preamble_send_time=time ï¿½Bï¿½Wï¿½Lï¿½ï¿½ï¿½Ç¤Wï¿½ï¿½=10 ï¿½Ò¥Hupbound_preamble=10ï¿½ï¿½Ú´Nï¿½Oï¿½Ä¤Qï¿½@ï¿½^ï¿½X
+												{
+													RACH[x][scan_2][8]=1;
+													RACH[x][cell_diveces_number][8]+=1;
+													RACH[x][scan_2][3]=time+RaResponseTime;	//ï¿½Ç°epreambleï¿½ï¿½Aï¿½btime+20ï¿½ï¿½ï¿½É¶ï¿½Å¥ï¿½ï¿½RAR
+												}
 												
-													if(backoff_6%inter_random_access_cycle==2)
+												if((RACH[x][scan_2][2]==time) && (RACH[x][scan_2][1]<upbound_preamble) && (RACH[x][scan_2][7]==0) && (RACH[x][scan_2][8]==0)) //preamble_send_time=time ï¿½Bï¿½Sï¿½ï¿½ï¿½Wï¿½Lï¿½ï¿½ï¿½Ç¤Wï¿½ï¿½=10
+												{
+													buffer_pre[pre][0]=scan_2;	//ï¿½ï¿½ï¿½Xï¿½Cï¿½oï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½sï¿½ï¿½preambleï¿½ï¿½	ï¿½Ø¥ß²Mï¿½ï¿½					
+													RACH[x][scan_2][0]=(int)((lcgrand(3)*preambles));	//ï¿½Hï¿½ï¿½ï¿½ï¿½ï¿½ï¿½preamble
+													buffer_pre[pre][1]=RACH[x][scan_2][0];	//ï¿½ï¿½preambleï¿½xï¿½s
+						
+													int pre_serial=0;		//ï¿½È¦spreamble
+													pre_serial=RACH[x][scan_2][0];
+													BOX_pre[pre_serial]++;	//ï¿½È¦spreambleï¿½ï¿½Ó½sï¿½ï¿½ï¿½ï¿½BOXï¿½Aï¿½ï¿½ï¿½]preamble=36  BOX_pre[36]++
+						
+													pre++;
+												
+													RACH[x][scan_2][3]=time+RaResponseTime;	//ï¿½Ç°epreambleï¿½ï¿½Aï¿½btime+20ï¿½ï¿½ï¿½É¶ï¿½Å¥ï¿½ï¿½RAR
+													RACH[x][scan_2][1]++;	//preambleï¿½Ç°eï¿½ï¿½ï¿½ï¿½+1   !!!!!!!  ï¿½]ï¿½ï¿½ï¿½ï¿½ï¿½]ï¿½ï¿½ï¿½@ï¿½ï¿½ï¿½~+1  !!!!!!!
+												}
+											}
+						
+											
+											double sum_preamble_collision_time=0;		//ï¿½Ö­ppreamï¿½Ç°eï¿½oï¿½Í¸Iï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+											double sum_preamble_collision_num=0;		//ï¿½Ö­ppreamï¿½Ç°eï¿½oï¿½Í¸Iï¿½ï¿½ï¿½ï¿½ï¿½Æ¶q 
+											double sum_preamble_noncollision_time=0;	//ï¿½Ö­ppreamï¿½Ç°eï¿½Lï¿½oï¿½Í¸Iï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+											double sum_preamble_noncollision_num=0;		//ï¿½Ö­ppreamï¿½Ç°eï¿½Lï¿½oï¿½Í¸Iï¿½ï¿½ï¿½ï¿½ï¿½Æ¶q
+											for(int scan_buffer_pre=0; scan_buffer_pre<preambles; scan_buffer_pre++)	//ï¿½ï¿½ï¿½yBOX_preï¿½ï¿½ï¿½Cï¿½ï¿½devicesï¿½ï¿½preamble
+											{
+												if(BOX_pre[scan_buffer_pre]>=2)			//ï¿½Yï¿½Ó½sï¿½ï¿½ï¿½ï¿½BOXï¿½Wï¿½Lï¿½ï¿½ï¿½DEVICEsï¿½hï¿½Nï¿½ï¿½ï¿½ï¿½PREAMBLEï¿½Iï¿½ï¿½ï¿½F
+												{
+													sum_preamble_collision_time++;		//ï¿½Ö­pï¿½Xï¿½ï¿½pream ï¿½ï¿½ï¿½Ç°eï¿½oï¿½Í¸Iï¿½ï¿½
+													sum_preamble_collision_num += BOX_pre[scan_buffer_pre];
+												}
+												else if(BOX_pre[scan_buffer_pre]==1)	//ï¿½Yï¿½Ó½sï¿½ï¿½ï¿½ï¿½BOXï¿½ï¿½1ï¿½ï¿½DEVICEsï¿½hï¿½Nï¿½ï¿½ï¿½ï¿½PREAMBLEï¿½ï¿½ï¿½wï¿½ï¿½Ø¼ï¿½
+												{
+													sum_preamble_noncollision_time++;
+													sum_preamble_noncollision_num += BOX_pre[scan_buffer_pre];
+												}
+											}
+											
+										
+											if(pre>=1)
+											{			
+												int count = sum_preamble_noncollision_time - RAR_amount;
+												
+												//ï¿½pï¿½ï¿½ non-collision nodes ï¿½Wï¿½Lï¿½Ç°eï¿½ï¿½ï¿½îªº backoff 
+												for(int scan_buffer_pre=0; scan_buffer_pre<preambles; scan_buffer_pre++)
+												{
+													if(BOX_pre[scan_buffer_pre]==1)
 													{
-														RACH[x][index_1][2]=backoff_6;
-													}
-													else
-													{
-														if(backoff_6%inter_random_access_cycle==1)
+														for(int member=0; member<pre; member++)
 														{
-															RACH[x][index_1][2]=backoff_6+1;
+															if((count>0) && (buffer_pre[member][1]==scan_buffer_pre))
+															{
+																count = count - 1;
+																int index_1=1000;
+																index_1=buffer_pre[member][0];
+						
+																int backoff_6=0;
+																int back_win=0;
+																back_win = BackoffWin(RACH[x][index_1][1], CWin);
+																backoff_6=RACH[x][index_1][2]+RaResponseTime+(int)(lcgrand(4)*back_win)*inter_random_access_cycle;
+															
+																if(backoff_6%inter_random_access_cycle==2)
+																{
+																	RACH[x][index_1][2]=backoff_6;
+																}
+																else
+																{
+																	if(backoff_6%inter_random_access_cycle==1)
+																	{
+																		RACH[x][index_1][2]=backoff_6+1;
+																	}
+																	else
+																	{
+																		RACH[x][index_1][2]=backoff_6+((inter_random_access_cycle+1)-(backoff_6-1)%inter_random_access_cycle);
+																	}
+																}
+																RACH[x][index_1][7]=0;
+															}
+															else if(buffer_pre[member][1]==scan_buffer_pre)
+															{
+																int index_2=1000;
+																index_2=buffer_pre[member][0];
+																RACH[x][index_2][7]=1;
+																RACH[x][cell_diveces_number][7]+=1;
+															}	
+														} 
+													} 
+												}	//END//ï¿½pï¿½ï¿½ non-collision nodes ï¿½Wï¿½Lï¿½Ç°eï¿½ï¿½ï¿½îªº backoff 
+												
+												//ï¿½pï¿½ï¿½ collision nodes ï¿½ï¿½backoff 
+												for(int Token=0; Token<pre; Token++)
+												{
+													int buffer_EZ[1]={0};				//ï¿½È¦sï¿½ï¿½
+													buffer_EZ[0]=buffer_pre[Token][1];	//ï¿½È¦s
+													buffer_pre[Token][1]=100; 			//ï¿½ï¿½hï¿½Xï¿½Óªï¿½ï¿½È¦spreamble ï¿½ï¿½^ï¿½@ï¿½Ó°ï¿½ï¿½ï¿½ï¿½ï¿½100
+													int countEZ=0;
+						
+													for(int member=0; member<pre; member++)
+													{
+														if((buffer_EZ[0]-buffer_pre[member][1])==0) //ï¿½Ypreambleï¿½ï¿½ï¿½Pï¿½Hï¿½ï¿½ï¿½ï¿½ countEZ++
+														{
+															countEZ++;
+														}
+													}
+						
+													if (countEZ>0)	//ï¿½ï¿½ï¿½Xï¿½Ó¼È¦sï¿½ï¿½deviceï¿½Tï¿½wpreambleï¿½ï¿½ï¿½Pï¿½Hï¿½ï¿½ï¿½Æ§ï¿½ï¿½device ï¿½@backoff
+													{
+														int index_1=1000;
+														index_1=buffer_pre[Token][0];
+						
+														int backoff_6=0;
+														int back_win=0;
+														back_win = BackoffWin(RACH[x][index_1][1], CWin);
+														backoff_6=RACH[x][index_1][2]+RaResponseTime+(int)(lcgrand(4)*back_win)*inter_random_access_cycle;			
+													
+														if(backoff_6%inter_random_access_cycle==2)
+														{
+															RACH[x][index_1][2]=backoff_6;
 														}
 														else
 														{
-															RACH[x][index_1][2]=backoff_6+((inter_random_access_cycle+1)-(backoff_6-1)%inter_random_access_cycle);
+															if(backoff_6%inter_random_access_cycle==1)
+															{
+																RACH[x][index_1][2]=backoff_6+1;
+															}
+															else
+															{
+																RACH[x][index_1][2]=backoff_6+((inter_random_access_cycle+1)-(backoff_6-1)%inter_random_access_cycle);
+															}
 														}
 													}
-													RACH[x][index_1][7]=0;
-												}
-												else if(buffer_pre[member][1]==scan_buffer_pre)
-												{
-													int index_2=1000;
-													index_2=buffer_pre[member][0];
-													RACH[x][index_2][7]=1;
-													RACH[x][cell_diveces_number][7]+=1;
-												}	
+													
+													buffer_pre[Token][1]=buffer_EZ[0];	//ï¿½ï¿½hï¿½Xï¿½Óªï¿½ï¿½È¦spreambelï¿½ï¿½^ï¿½ì¥»ï¿½ï¿½m
+													buffer_EZ[0]=0;
+						
+												}	//END//ï¿½pï¿½ï¿½ collision nodes ï¿½ï¿½backoff 
+												
 											} 
-										} 
-									}	//END//­pºâ non-collision nodes ¶W¹L¶Ç°e­­¨îªº backoff 
+											
+										}	//END// 2st subframe RACH process 
+						
+									} //END//ï¿½Cï¿½ï¿½cellï¿½ï¿½ï¿½O run simulation 
 									
-									//­pºâ collision nodes ªºbackoff 
-									for(int Token=0; Token<pre; Token++)
-									{
-										int buffer_EZ[1]={0};				//¼È¦s¾¹
-										buffer_EZ[0]=buffer_pre[Token][1];	//¼È¦s
-										buffer_pre[Token][1]=100; 			//§â·h¥X¨Óªº¼È¦spreamble ¶ë¦^¤@­Ó°²ªº­È100
-										int countEZ=0;
-
-										for(int member=0; member<pre; member++)
-										{
-											if((buffer_EZ[0]-buffer_pre[member][1])==0) //­Ypreamble¦³»P¤H­«½Æ countEZ++
-											{
-												countEZ++;
-											}
-										}
-
-										if (countEZ>0)	//®³¥X¨Ó¼È¦sªºdevice½T©wpreamble¦³»P¤H­«½Æ§â¸Ódevice §@backoff
-										{
-											int index_1=1000;
-											index_1=buffer_pre[Token][0];
-
-											int backoff_6=0;
-											int back_win=0;
-											back_win = BackoffWin(RACH[x][index_1][1], CWin);
-											backoff_6=RACH[x][index_1][2]+RaResponseTime+(int)(lcgrand(4)*back_win)*inter_random_access_cycle;			
+												
+									/* debug showï¿½Xï¿½Ò¦ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Gï¿½ï¿½Excel */ 
+									// for(int xd=0; xd<cell; xd++) 
+									// {
+									// 	filePtr <<"time="<<time<<","<<"cell="<<xd<<endl;
+									// 	filePtr <<"pream"<<","<<"p tr round"<<","<<"p send t"<<","<<"RAR lis W"<<"," \
+									// 			<<"M3 tr round"<<","<<"M3 send T"<<","<<"M3_ACK_T"<<","<<"Stage"<<"," \
+									// 			<<"over p t round"<<","<<"macTimer"<<","<<"real-timer"<<","<<"M4_listen_T"<<"," \
+									// 			<<"M4_t_round"<<","<<"M4_ACK_T"<<","<<"P_time"<<","<<"M34_time"<<endl;
 										
-											if(backoff_6%inter_random_access_cycle==2)
+									// 	for(int yd=0; yd<BOX[xd]+1; yd++)
+									// 	{
+									// 		for(int zd=0; zd<parameter; zd++)
+									// 		{
+									// 			filePtr<<RACH[xd][yd][zd]<<",";
+									// 		}
+									// 		filePtr<<endl;
+									// 	}
+									// 	filePtr<<endl<<endl<<endl;
+									// }
+									
+									
+									/* Analyze data and record to excel*/
+									if(time==1)
+									{
+										timePtr <<"Time(ms)"<<","<<"Success"<<","<<"Success_intime"<<","<<"Success_outtime"<<","<<"TryOver"<<"," \
+												<<"TryOver_intime"<<","<<"TryOver_outtime"<<","<<"Timeout"<<","<<"M"<<","<<"Success Rate"<<"," \
+												<<"Failure Rate"<<","<<"TAD"<<","<<"Access Delay"<<"," \
+												<<endl;	
+									}
+									
+									
+									int list_tmp=0; 
+									for(int xd=0; xd<cell; xd++) 
+									{
+										if(trytime==0)
+										{
+											list_tmp = BOX[xd];
+											TO_x=0;
+											TO_T_x=0;
+											HT_S_x=0;
+											sum_RA_success_time=0;
+											sum_RA_access_time=0; 
+											HT_S_x_intime=0;
+											TO_T_x_intime=0;
+										}
+										else
+										{
+											list_tmp = rem_num_tmp; 
+											TO_T_x=0;
+											HT_S_x=0;
+											sum_RA_access_time=0;
+										}
+										
+										for(int yd=0; yd<list_tmp; yd++)
+										{	
+											if((trytime==0) && (RACH[xd][yd][7]==0) && (RACH[xd][yd][8]==0))	//timeout
 											{
-												RACH[x][index_1][2]=backoff_6;
+												TO_x++;
 											}
-											else
+											else if(RACH[xd][yd][7]==1)	//success 
 											{
-												if(backoff_6%inter_random_access_cycle==1)
+												if(trytime==0)
 												{
-													RACH[x][index_1][2]=backoff_6+1;
+													HT_S_x++;
+													sum_RA_success_time += RACH[xd][yd][3];
+													sum_RA_access_time += RACH[xd][yd][3];	
+													HT_S_x_intime = HT_S_x;
 												}
 												else
 												{
-													RACH[x][index_1][2]=backoff_6+((inter_random_access_cycle+1)-(backoff_6-1)%inter_random_access_cycle);
+													HT_S_x++;
+													sum_RA_access_time += RACH[xd][yd][3];
 												}
+												
+											}
+											else if(RACH[xd][yd][8]==1)	//try over times
+											{
+												TO_T_x++;
+												sum_RA_access_time = sum_RA_access_time + RACH[xd][yd][3];
+												if(trytime==0)
+												{
+													TO_T_x_intime = TO_T_x;
+												} 
+											}	
+										}
+										
+										if(time==end_time)
+										{
+											rem_num_tmp_tmp = list_tmp - HT_S_x - TO_T_x;
+											sum_RA_access_time = sum_RA_access_time + sum_RA_access_time_tmp;
+											TO_T_x = TO_T_x + TO_T_x_tmp;
+											HT_S_x = HT_S_x + HT_S_x_tmp;
+												
+											if(list_tmp!=rem_num_tmp_tmp)
+											{
+												sum_RA_access_time_tmp = sum_RA_access_time;
+												HT_S_x_tmp = HT_S_x;
+												TO_T_x_tmp = TO_T_x;
+												rem_num_tmp_tmp = list_tmp;
+											}
+										}
+										else if(trytime>0)
+										{
+											sum_RA_access_time = sum_RA_access_time + sum_RA_access_time_tmp;
+											TO_T_x = TO_T_x + TO_T_x_tmp;
+											HT_S_x = HT_S_x + HT_S_x_tmp;
+										}
+									}
+									
+									if(trytime==0)
+									{
+										M_tmp = M;
+										success_rate=(float)HT_S_x_intime/M_tmp;
+										failure_rate = 1 - success_rate;
+										average_success_access_delay = (float)(sum_RA_success_time/HT_S_x_intime);
+									}
+									average_access_delay = (float)(sum_RA_access_time/M_tmp);
+									
+									timePtr <<time<<","<<HT_S_x<<","<<HT_S_x_intime<<","<<HT_S_x-HT_S_x_intime<<","<<TO_T_x<<"," \
+											<<TO_T_x_intime<<","<<TO_T_x-TO_T_x_intime<<","<<TO_x<<","<<M_tmp<<","<<success_rate<<"," \
+											<<failure_rate<<","<<average_success_access_delay<<","<<average_access_delay<<"," \
+											<<endl;
+									
+									if(trytime>0)
+									{
+										int rem_success=0;
+										for(int xd=0; xd<cell; xd++) 
+										{
+											for(int yd=0; yd<rem_num_tmp; yd++)
+											{	
+												if((RACH[xd][yd][7]==1) || (RACH[xd][yd][8]==1))
+												{
+													rem_success++;
+												}		
+											}
+										}
+										if(rem_success==rem_num_tmp)
+											end_time = time;
+									}
+									
+									if(time==end_time)
+									{
+										int yd2=0;
+										int list_tmp=0;
+										for(int xd=0; xd<cell; xd++) 
+										{	
+											if(trytime==0)
+											{
+												list_tmp = BOX[xd];
+											}
+											else
+											{
+												list_tmp = rem_num_tmp; 
+											} 
+											
+											for(int yd=0; yd<list_tmp; yd++)
+											{	
+												if((RACH[xd][yd][7]==0) && (RACH[xd][yd][8]==0))
+												{
+													rem_num++;
+													for(int p=0; p<parameter; p++)
+													{
+														RACH_tmp[xd][yd2][p]=RACH[xd][yd][p];
+													}
+													yd2++;
+												}		
 											}
 										}
 										
-										buffer_pre[Token][1]=buffer_EZ[0];	//§â·h¥X¨Óªº¼È¦spreambel©ñ¦^­ì¥»¦ì¸m
-										buffer_EZ[0]=0;
+										if(rem_num>0)
+										{
+											continue_flg=1;
+											trytime++;
+										}	
+										else
+										{
+											continue_flg=0;
+										}
+										
+									}
 
-									}	//END//­pºâ collision nodes ªºbackoff 
-									
-								} 
-								
-							}	//END// 2st subframe RACH process 
+								} //END//ï¿½@ï¿½Ó¼ï¿½ï¿½ï¿½ï¿½Ï¶ï¿½ï¿½É¶ï¿½
 
-						} //END//¨C­Ócell¤À§O run simulation 
-						
-									
-						/* debug show¥X©Ò¦³ªºµ²ªG¦ÜExcel */ 
-						for(int xd=0; xd<cell; xd++) 
-						{
-							filePtr<<"time="<<time<<","<<"cell="<<xd<<endl;
-							filePtr<<"pream"<<","<<"p tr round"<<","<<"p send t"<<","<<"RAR lis W"<<","<<"M3 tr round"<<","<<"M3 send T"<<","<<"M3_ACK_T"<<","<<"Stage"<<","<<"over p t round"<<","<<"macTimer"<<","<<"real-timer"<<","<<"M4_listen_T"<<","<<"M4_t_round"<<","<<"M4_ACK_T"<<","<<"P_time"<<","<<"M34_time"<<endl;
-							
-							for(int yd=0; yd<BOX[xd]+1; yd++)
-							{
-								for(int zd=0; zd<parameter; zd++)
-								{
-									filePtr<<RACH[xd][yd][zd]<<",";
-								}
-								filePtr<<endl;
-							}
-							filePtr<<endl<<endl<<endl;
-						}
-						
-						
-						/* Analyze data and record to excel*/
-						if(time==1)
-						{
-							timePtr <<"Time(ms)"<<","<<"Success"<<","<<"TryOver"<<","<<"Timeout"<<","<<"M"<<"," \
-									<<"Success Rate"<<","<<"Failure Rate"<<","<<"TAD"<<","<<"Access Delay"<<"," \
-									<<endl;	
-						}
-						
-						float success_rate=0;	// success rate
-						float failure_rate=0;	// failure rate
-						float average_success_access_delay=0;	// time-limited access delay(TAD)
-						float average_access_delay=0;	// all devices access delay
-						
-						int HT_S_x=0;	//success device
-						int TO_T_x=0;	//try over times device
-						int TO_x=0;		//timeout device
-						double sum_RA_success_time=0;	//calculate device success time
-						double sum_RA_access_time=0;	//calculate device access time
-									
-						for(int xd=0; xd<cell; xd++) 
-						{
-							for(int yd=0; yd<BOX[xd]; yd++)
-							{	
-								if((time==sim_time) && (RACH[xd][yd][7]==0) && (RACH[xd][yd][8]==0))
-								{
-									TO_x++;
-									sum_RA_access_time += sim_time;
-								}
-								else if(RACH[xd][yd][8]==1)
-								{
-									TO_T_x++;
-									sum_RA_access_time = sum_RA_access_time + RACH[xd][yd][3];
-								}
-								else if(RACH[xd][yd][7]==1)
-								{
-									HT_S_x++;
-									sum_RA_success_time += RACH[xd][yd][3];
-									sum_RA_access_time += RACH[xd][yd][3];
-								}
-							}
-						}
-						
-						success_rate=(float)HT_S_x/M;
-						failure_rate = 1 - success_rate;
-						average_success_access_delay = (float)(sum_RA_success_time/HT_S_x);
-						average_access_delay = (float)(sum_RA_access_time/M);
-						
-						timePtr <<time<<","<<HT_S_x<<","<<TO_T_x<<","<<TO_x<<","<<M<<"," \
-								<<success_rate<<","<<failure_rate<<","<<average_success_access_delay<<"," \
-								<<average_access_delay<<","<<endl;
-								
-								
-					}//END//¦@¼ÒÀÀ¦h¤Ö®É¶¡
-					
-				}//END//¨C­Ócell devices¼Æ¥Øªº²Õ¦X­n¶]ªº¦¸¼Æ
-			
-			}//END//¨C­Ócell devices¼Æ¥Ø ­nrandom´X¦¸
+								release_mem2(&buffer_pre[0], M);
+								delete[] buffer_pre;
+								buffer_pre = NULL;
 
-		}//end of simecase
-		
-		filePtr.close();
-		timePtr.close();
-		cout<< "================== End =================" << endl;
-	
-	}//END//Beginning for loop
+								release_mem3(&RACH[0], cell, list);
+								delete[] RACH;
+								RACH = NULL;
+							} //END//while
 
-	return 0;
-			
+							// filePtr.close();
+							timePtr.close();	
+							cout << "G=" << i \
+								<< ", T=" << simulation_case_time[simulation_case_index_time] \
+								<< ", CW=" << simulation_case_CWin[simulation_case_index_CWin] \
+								<< ", M=" << simulation_case_M[simulation_case_index_M] \
+								<< ", RAR=" << simulation_case_RAR[simulation_case_index_RAR] \
+								<< ", ReMAX=" << simulation_case_RetransMAX[simulation_case_index_RetransMAX] \
+								<< ", PREM=" << simulation_case_PREM[simulation_case_index_PREM] \
+								<< " --- End" << endl << endl;
+							i+=1;
+						
+						}	// M loop
+					}	//END//CWin loop
+				}	//END//sim_time loop
+			}	//END//PREM loop
+		}	//END//upbound retrans preamble loop
+	}	//END// RAR amount loop
+	return 0;			
+}
+
+
+
+int** assign_mem2(int **pArray, unsigned int size1, unsigned int size2)
+{
+    pArray = new int*[size1];
+    for(int i = 0; i<size1; i++)
+    {
+        pArray[i] = new int[size2];
+    }
+    return pArray;
+}
+
+int*** assign_mem3(int ***pArray, unsigned int size1, unsigned int size2, unsigned int size3)
+{
+    pArray = new int**[size1];
+    for(int i=0; i<size1; i++)
+    {
+        pArray[i] = new int*[size2];
+		for(int j= 0; j<size2; j++)
+		{
+			pArray[i][j] = new int[size3];
+		}
+    }
+    return pArray;
+}
+
+void release_mem2(int **pArray, unsigned int size1)
+{
+    for(int i = 0; i<size1; i++)
+    {
+        delete pArray[i];
+    }
+}
+
+void release_mem3(int ***pArray, unsigned int size1, unsigned int size2)
+{
+	for(int i=0; i<size1; i++)
+    {
+		for(int j= 0; j<size2; j++)
+		{
+			delete pArray[i][j];
+		}
+    }
 }

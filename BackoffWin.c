@@ -3,7 +3,7 @@
 #include <math.h> 
 //using namespace std;
 
-
+extern int BackoffWin(int trytime, int CWin);
 const int m=23;		//default m
 
 int power(int base, int exp)
